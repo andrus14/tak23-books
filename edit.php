@@ -4,34 +4,18 @@ require_once('./connection.php');
 
 $id = $_GET['id'];
 
-// update book data
-if ( isset($_POST['action']) && $_POST['action'] == 'Salvesta' ) {
-
-    $stmt = $pdo->prepare('UPDATE books SET title = :title, price = :price WHERE id = :id');
-    $stmt->execute(['id' => $id, 'title' => $_POST['title'], 'price' => $_POST['price'] ]);
-
-    header("Location: ./book.php?id={$id}");
-
-}
-
-// remove author from book
-if ( isset($_POST['action']) && $_POST['action'] == 'remove_auhtor' ) {
-
-    $stmt = $pdo->prepare('DELETE FROM book_authors WHERE book_id = :book_id AND author_id = :auhtor_id;');
-    $stmt->execute(['book_id' => $id, 'auhtor_id' => $_POST['author_id']]);
-
-    header("Location: ./book.php?id={$id}");
-
-}
-
 // get book data
 $stmt = $pdo->prepare('SELECT * FROM books WHERE id = :id');
 $stmt->execute(['id' => $id]);
 $book = $stmt->fetch();
 
 // get book auhtors
-$stmt = $pdo->prepare('SELECT * FROM book_authors ba LEFT JOIN authors a ON ba.author_id=a.id WHERE ba.book_id = :id');
-$stmt->execute(['id' => $id]);
+$bookAuthorsStmt = $pdo->prepare('SELECT * FROM book_authors ba LEFT JOIN authors a ON ba.author_id=a.id WHERE ba.book_id = :id');
+$bookAuthorsStmt->execute(['id' => $id]);
+
+// get available auhtors
+$availableAuthorsStmt = $pdo->prepare('SELECT * FROM authors WHERE id NOT IN (SELECT author_id FROM book_authors WHERE book_id = :book_id)');
+$availableAuthorsStmt->execute(['book_id' => $id]);
 
 ?>
 
@@ -44,7 +28,14 @@ $stmt->execute(['id' => $id]);
 </head>
 <body>
 
-    <form action="./edit.php?id=<?= $id; ?>" method="post">
+    <nav>
+        <a href="./book.php?id=<?= $id; ?>">Tagasi</a>
+    </nav>
+    <br>
+
+    <h3><?= $book['title'];?></h3>
+
+    <form action="./update_book.php?id=<?= $id; ?>" method="post">
         <label for="title">Pealkiri:</label>
         <input type="text" name="title" value="<?= $book['title'];?>">
         <br>
@@ -56,12 +47,13 @@ $stmt->execute(['id' => $id]);
    
 <br><br>
 
-    Autorid:
+    <h3>Autorid:</h3>
+
     <ul>
-        <?php while ( $author = $stmt->fetch() ) { ?>
+        <?php while ( $author = $bookAuthorsStmt->fetch() ) { ?>
             
             <li>
-                <form action="./edit.php?id=<?= $id; ?>" method="post">
+                <form action="./remove_author.php?id=<?= $id; ?>" method="post">
                     <?= $author['first_name']; ?>
                     <?= $author['last_name']; ?>
                     <button type="submit" name="action" value="remove_auhtor" style="cursor: pointer; border: 0; background-color: inherit; margin-left: 16px;">
@@ -75,6 +67,29 @@ $stmt->execute(['id' => $id]);
         
         <?php } ?>
     </ul>
+
+    <form action="./add_author.php" method="post">
+
+        <input type="hidden" name="book_id" value="<?= $id; ?>">
+
+        <select name="author_id">
+    
+            <option value=""></option>
+        
+        <?php while ( $author = $availableAuthorsStmt->fetch() ) { ?>
+            <option value="<?= $author['id']; ?>">
+                <?= $author['first_name']; ?>
+                <?= $author['last_name']; ?>
+            </option>
+        <?php } ?>
+
+        </select>
+
+        <button type="submit" name="action" value="add_author">
+            Lisa autor
+        </button>
+
+    </form>
 
 </body>
 </html>
